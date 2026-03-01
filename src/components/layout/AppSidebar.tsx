@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard,
@@ -7,27 +7,74 @@ import {
   ShieldCheck,
   Pill,
   FileText,
-  Settings,
   ChevronLeft,
   ChevronRight,
-  Activity,
+  Upload,
+  Clock,
+  Package,
+  Monitor,
+  BarChart3,
+  LogOut,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAuth, UserRole } from "@/context/AuthContext";
 
-const navGroups = [
-  {
-    label: "Overview",
-    items: [
-      { title: "Patient", href: "/dashboard/patient", icon: Users },
-      { title: "Doctor", href: "/dashboard/doctor", icon: ShieldCheck },
-      { title: "Admin", href: "/dashboard/admin", icon: LayoutDashboard },
-    ],
-  },
-];
+const navByRole: Record<UserRole, { label: string; items: { title: string; href: string; icon: typeof Users }[] }[]> = {
+  patient: [
+    {
+      label: "My Health",
+      items: [
+        { title: "Dashboard", href: "/dashboard/patient", icon: LayoutDashboard },
+        { title: "Upload Rx", href: "/dashboard/patient", icon: Upload },
+        { title: "My Prescriptions", href: "/dashboard/patient", icon: FileText },
+        { title: "History", href: "/dashboard/patient", icon: Clock },
+      ],
+    },
+  ],
+  doctor: [
+    {
+      label: "Practice",
+      items: [
+        { title: "Dashboard", href: "/dashboard/doctor", icon: LayoutDashboard },
+        { title: "Pending Review", href: "/dashboard/doctor", icon: FileText },
+        { title: "Patients", href: "/dashboard/doctor", icon: Users },
+      ],
+    },
+  ],
+  admin: [
+    {
+      label: "Management",
+      items: [
+        { title: "Dashboard", href: "/dashboard/admin", icon: LayoutDashboard },
+        { title: "Inventory", href: "/dashboard/admin", icon: Package },
+        { title: "Machines", href: "/dashboard/admin", icon: Monitor },
+        { title: "Analytics", href: "/dashboard/admin", icon: BarChart3 },
+      ],
+    },
+  ],
+};
+
+const roleLabels: Record<UserRole, { label: string; icon: typeof Users }> = {
+  patient: { label: "Patient", icon: Users },
+  doctor: { label: "Doctor", icon: ShieldCheck },
+  admin: { label: "Admin", icon: LayoutDashboard },
+};
 
 export function AppSidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+  const { role, logout } = useAuth();
+
+  if (!role) return null;
+
+  const navGroups = navByRole[role];
+  const roleInfo = roleLabels[role];
+
+  const handleLogout = () => {
+    logout();
+    navigate("/auth");
+  };
 
   return (
     <motion.aside
@@ -55,8 +102,30 @@ export function AppSidebar() {
         </AnimatePresence>
       </div>
 
+      {/* Role badge */}
+      <div className="px-3 pt-4 pb-2">
+        <div className={cn(
+          "flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/10 text-primary",
+          collapsed && "justify-center px-0"
+        )}>
+          <roleInfo.icon className="w-4 h-4 flex-shrink-0" />
+          <AnimatePresence>
+            {!collapsed && (
+              <motion.span
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-xs font-semibold"
+              >
+                {roleInfo.label} Portal
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </div>
+      </div>
+
       {/* Nav */}
-      <nav className="flex-1 py-4 px-3 space-y-6 overflow-y-auto">
+      <nav className="flex-1 py-2 px-3 space-y-6 overflow-y-auto">
         {navGroups.map((group) => (
           <div key={group.label}>
             <AnimatePresence>
@@ -72,11 +141,11 @@ export function AppSidebar() {
               )}
             </AnimatePresence>
             <div className="space-y-1">
-              {group.items.map((item) => {
-                const active = location.pathname === item.href;
+              {group.items.map((item, idx) => {
+                const active = location.pathname === item.href && idx === 0;
                 return (
                   <Link
-                    key={item.href}
+                    key={item.title}
                     to={item.href}
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 relative group",
@@ -113,8 +182,21 @@ export function AppSidebar() {
         ))}
       </nav>
 
-      {/* Collapse Toggle */}
-      <div className="p-3 border-t border-border">
+      {/* Logout & Collapse */}
+      <div className="p-3 border-t border-border space-y-1">
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-destructive hover:bg-destructive/10 transition-colors"
+        >
+          <LogOut className="w-4 h-4" />
+          <AnimatePresence>
+            {!collapsed && (
+              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm">
+                Logout
+              </motion.span>
+            )}
+          </AnimatePresence>
+        </button>
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
@@ -122,12 +204,7 @@ export function AppSidebar() {
           {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
           <AnimatePresence>
             {!collapsed && (
-              <motion.span
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="text-sm"
-              >
+              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="text-sm">
                 Collapse
               </motion.span>
             )}
