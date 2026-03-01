@@ -1,28 +1,46 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Pill, ArrowRight, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Pill, ArrowRight, Mail, Lock, Eye, EyeOff, Users, ShieldCheck, LayoutDashboard } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FadeIn } from "@/components/layout/Animations";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { useAuth, UserRole } from "@/context/AuthContext";
+import { cn } from "@/lib/utils";
+
+const roles: { id: UserRole; label: string; icon: typeof Users; description: string }[] = [
+  { id: "patient", label: "Patient", icon: Users, description: "Upload prescriptions & track status" },
+  { id: "doctor", label: "Doctor", icon: ShieldCheck, description: "Review & approve prescriptions" },
+  { id: "admin", label: "Admin", icon: LayoutDashboard, description: "Manage inventory & machines" },
+];
 
 export default function AuthPage() {
-  const [step, setStep] = useState<"login" | "otp">("login");
+  const [step, setStep] = useState<"role" | "login" | "otp">("role");
+  const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [otp, setOtp] = useState("");
   const navigate = useNavigate();
+  const { login } = useAuth();
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setStep("otp");
   };
 
+  const completeLogin = () => {
+    if (!selectedRole) return;
+    login(selectedRole);
+    navigate(`/dashboard/${selectedRole}`);
+  };
+
   const handleOtpComplete = (value: string) => {
     setOtp(value);
     if (value.length === 6) {
-      setTimeout(() => navigate("/dashboard/patient"), 600);
+      setTimeout(completeLogin, 600);
     }
   };
+
+  const currentRoleInfo = roles.find((r) => r.id === selectedRole);
 
   return (
     <div className="min-h-screen flex bg-background relative overflow-hidden">
@@ -63,8 +81,9 @@ export default function AuthPage() {
       <div className="flex-1 flex items-center justify-center p-6">
         <FadeIn className="w-full max-w-md">
           <div className="glass-card p-8">
-            {step === "login" ? (
-              <>
+            {/* Step 1: Role selection */}
+            {step === "role" && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
                 <div className="text-center mb-8">
                   <div className="lg:hidden flex items-center justify-center gap-3 mb-6">
                     <div className="w-10 h-10 rounded-xl gradient-bg-primary flex items-center justify-center">
@@ -72,8 +91,65 @@ export default function AuthPage() {
                     </div>
                     <span className="font-bold text-lg">MEDIKIOSK</span>
                   </div>
-                  <h2 className="text-2xl font-bold mb-2">Welcome back</h2>
-                  <p className="text-sm text-muted-foreground">Sign in to your account</p>
+                  <h2 className="text-2xl font-bold mb-2">Welcome</h2>
+                  <p className="text-sm text-muted-foreground">Select your role to continue</p>
+                </div>
+
+                <div className="space-y-3 mb-6">
+                  {roles.map((role) => (
+                    <motion.button
+                      key={role.id}
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={() => setSelectedRole(role.id)}
+                      className={cn(
+                        "w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all duration-200 text-left",
+                        selectedRole === role.id
+                          ? "border-primary bg-primary/5 glow-primary"
+                          : "border-border hover:border-primary/30 hover:bg-muted/50"
+                      )}
+                    >
+                      <div
+                        className={cn(
+                          "w-11 h-11 rounded-xl flex items-center justify-center transition-colors",
+                          selectedRole === role.id
+                            ? "bg-primary text-primary-foreground"
+                            : "bg-muted text-muted-foreground"
+                        )}
+                      >
+                        <role.icon className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-sm">{role.label}</p>
+                        <p className="text-xs text-muted-foreground">{role.description}</p>
+                      </div>
+                    </motion.button>
+                  ))}
+                </div>
+
+                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                  <Button
+                    onClick={() => selectedRole && setStep("login")}
+                    disabled={!selectedRole}
+                    className="w-full h-11 rounded-xl glow-primary text-base"
+                  >
+                    Continue as {currentRoleInfo?.label || "..."} <ArrowRight className="ml-2 w-4 h-4" />
+                  </Button>
+                </motion.div>
+              </motion.div>
+            )}
+
+            {/* Step 2: Login form */}
+            {step === "login" && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+                <div className="text-center mb-8">
+                  <div
+                    className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mx-auto mb-4"
+                  >
+                    {currentRoleInfo && <currentRoleInfo.icon className="w-6 h-6 text-primary" />}
+                  </div>
+                  <h2 className="text-2xl font-bold mb-1">{currentRoleInfo?.label} Login</h2>
+                  <p className="text-sm text-muted-foreground">Sign in to your {currentRoleInfo?.label?.toLowerCase()} account</p>
                 </div>
 
                 <form onSubmit={handleLogin} className="space-y-4">
@@ -83,8 +159,8 @@ export default function AuthPage() {
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                       <input
                         type="email"
-                        placeholder="doctor@medikiosk.com"
-                        defaultValue="admin@medikiosk.com"
+                        placeholder={`${selectedRole}@medikiosk.com`}
+                        defaultValue={`${selectedRole}@medikiosk.com`}
                         className="w-full h-11 rounded-xl bg-muted/50 border border-border pl-10 pr-4 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary/50 transition-all"
                       />
                     </div>
@@ -116,8 +192,18 @@ export default function AuthPage() {
                     </Button>
                   </motion.div>
                 </form>
-              </>
-            ) : (
+
+                <button
+                  onClick={() => { setStep("role"); setSelectedRole(null); }}
+                  className="text-sm text-muted-foreground hover:text-foreground mt-4 transition-colors block mx-auto"
+                >
+                  ← Change role
+                </button>
+              </motion.div>
+            )}
+
+            {/* Step 3: OTP */}
+            {step === "otp" && (
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -147,7 +233,7 @@ export default function AuthPage() {
 
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                   <Button
-                    onClick={() => navigate("/dashboard/patient")}
+                    onClick={completeLogin}
                     className="w-full h-11 rounded-xl glow-primary text-base"
                   >
                     Verify & Continue
